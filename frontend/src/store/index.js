@@ -1,24 +1,31 @@
-import Vue from "vue";
-import Vuex from "vuex";
+import Vue from 'vue'
+import Vuex from 'vuex'
 
-Vue.use(Vuex);
+Vue.use(Vuex)
 
-const store =  new Vuex.Store({
+// store 负责记录全局的变量 
+// conflux confluxJS sdk 
+
+// account 和 balance
+
+// store 不处理错误
+const store = new Vuex.Store({
   state: {
     conflux: null,
     account: null,
     cfxBalance: null,
-    confluxJS: null
+    confluxJS: null,
+    isDev: process.env.NODE_ENV !== 'production',
   },
   getters: {
     simplifiedAccount: state => {
       if (!state.account) {
         return null;
       }
-      const prefix = state.account.substr(0, 6);
-      const tail = state.account.substr(state.account.length - 4);
-      return `${prefix}...${tail}`;
-    }
+      const prefix = state.account.substr(0, 6)
+      const tail = state.account.substr(state.account.length-4)
+      return prefix + "..." + tail
+    },
   },
   // mutations 只能为同步事务 异步操作在 actions 内完成
   mutations: {
@@ -28,43 +35,54 @@ const store =  new Vuex.Store({
       state.confluxJS = confluxJS;
       state.sdk = sdk;
 
-      state.conflux.on("accountsChanged", accounts => {
+      state.conflux.on("accountsChanged", (accounts) => {
         console.log("accounts changed");
-        console.log(accounts);
+        console.log(accounts)
         if (accounts.length === 0) {
-          store.commit("resetAccount");
-          store.commit("resetCfxBalance");
+          store.commit('resetAccount')
+          store.commit('resetCfxBalance')
         }
-      });
+      })
     },
     setAccount(state, payload) {
-      state.account = payload.account;
+      state.account = payload.account
     },
     resetAccount(state) {
-      state.account = null;
+      state.account = null
     },
     setCfxBalance(state, payload) {
-      state.cfxBalance = payload.cfxBalance;
+      state.cfxBalance = payload.cfxBalance
     },
     resetCfxBalance(state) {
-      state.cfxBalance = null;
+      state.cfxBalance = null
+    },
+    changeDev(state) {
+      state.isDev ^= 1
     }
   },
   actions: {
     async authorize(context) {
       const accounts = await context.state.conflux.enable();
-      context.commit("setAccount", {
+      context.commit('setAccount', { 
         account: accounts[0]
-      });
-      await context.dispatch("updateCfxBalance");
+      })
+      await context.dispatch('updateCfxBalance')
     },
     async updateCfxBalance(context) {
-      const cfxBalance = (
-        await context.state.confluxJS.getBalance(context.state.account)
-      ).toString();
-      context.commit("setCfxBalance", { cfxBalance });
-    }
+      const cfxBalance = (await context.state.confluxJS.getBalance(context.state.account)).toString()
+      context.commit('setCfxBalance', {cfxBalance})
+    },
+    async init(context, payload) {
+      context.commit('init', payload);
+      const { selectedAddress } = context.state.conflux
+      if (selectedAddress) {
+        context.commit('setAccount', { 
+          account: selectedAddress
+        })
+        await context.dispatch('updateCfxBalance')
+      }
+    },
   }
-});
+})
 
 export default store;

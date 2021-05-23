@@ -2,7 +2,7 @@
   <el-card v-if="transactionList.length">
     <div slot="header">
       <span>历史交易</span>
-      <el-tooltip effect="light" content="本页未关闭时已确认的交易会被记录, 这些交易记录仅保存在用户本地">
+      <el-tooltip effect="light" content="本页未关闭时已执行的交易会被记录, 这些交易记录仅保存在用户本地">
         <i class="header-icon el-icon-info"></i>
       </el-tooltip>
       

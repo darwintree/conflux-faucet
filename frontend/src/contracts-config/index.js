@@ -21,23 +21,25 @@ const options = [
   }
 ];
 
-const faucetAddress = "cfxtest:acdy33ccw5k56xbcrbz10pycdjvt58k91y1kudkn2d"
+// 1 cfx each claim, 120s interval
+const faucetAddress = "cfxtest:acdpv88uh8s6ay439esubfb8dsf3kwvfs2xu6j5mkh";
 
-let config = {}
-options.forEach((option) => {
+let config = {};
+options.forEach(option => {
   config[option.contractName] = {
-      abi: ERC20.abi,
-      bytecode: ERC20.bytecode,
-      address: option.address,
-      label: option.label,
-      disabled: option.disabled
-  }
-})
+    abi: ERC20.abi,
+    bytecode: ERC20.bytecode,
+    address: option.address,
+    label: option.label,
+    disabled: option.disabled
+  };
+});
 
+// faucetContractConfig[netId]
+// 这里仍然赋值
 const faucetContractConfig = {
-    abi: faucet.abi,
-    bytecode: faucet.bytecode,
-    address: faucetAddress
-  }
-  
+  1: { abi: faucet.abi, bytecode: faucet.bytecode, address: faucetAddress },
+  1029: { abi: faucet.abi, bytecode: faucet.bytecode, address: faucetAddress }
+};
+
 export { config, faucetContractConfig };

@@ -3,7 +3,7 @@
     <el-row type="flex" justify="center">
       <el-col :span="20">
         <el-card shadow="hover">
-          <el-row v-if="!isNativeToken">
+          <el-row>
             <el-col :span="7">代币选择</el-col>
             <el-col :span="11">
               <el-select
@@ -25,31 +25,6 @@
                 </el-option>
               </el-select>
             </el-col>
-            <el-col :offset="1" :span="3">
-              <el-button
-                type="info"
-                size="mini"
-                :disabled="!isFreeState"
-                @click="isNativeToken ^= 1"
-              >
-                切换至CFX水龙头
-              </el-button>
-            </el-col>
-          </el-row>
-
-          <el-row v-if="isNativeToken">
-            <el-col :span="7">代币选择</el-col>
-            <el-col :span="11"> 测试网CFX </el-col>
-            <el-col :offset="1" :span="3">
-              <el-button
-                type="info"
-                size="mini"
-                :disabled="!isFreeState"
-                @click="isNativeToken ^= 1"
-              >
-                切换至代币水龙头
-              </el-button>
-            </el-col>
           </el-row>
 
           <el-row type="flex">
@@ -61,10 +36,10 @@
             </el-col>
             <el-col :span="1">
               <el-tooltip
-                v-if="isNativeToken?cfxBalance:tokenBalance"
+                v-if="isNativeToken ? cfxBalance : tokenBalance"
                 class="item"
                 effect="dark"
-                :content="isNativeToken?cfxBalance:tokenBalance"
+                :content="isNativeToken ? cfxBalance : tokenBalance"
                 placement="right"
               >
                 <div class="right-align bold-font">
@@ -73,23 +48,44 @@
               </el-tooltip>
             </el-col>
             <el-col :offset="1" :span="3">
-              <el-button
-                type="primary"
-                size="mini"
-                :disabled="!isFreeState"
-                @click="claim"
-              >
+              <el-button type="primary" size="mini" :disabled="!isFreeState" @click="claim">
                 领取
               </el-button>
             </el-col>
+          </el-row>
+          <el-divider></el-divider>
+          <el-row type="flex">
+            <el-col :span="7">
+              代币池余额
+              <el-tooltip effect="light" content="代币池余额并非实时更新，用户操作后会进行更新">
+                <i class="header-icon el-icon-info"></i>
+              </el-tooltip>
+            </el-col>
+            <el-col :span="10">
+              <div class="full-width">
+                {{ queryingFaucetBalance }}
+              </div>
+            </el-col>
             <el-col :span="1">
-              <el-button
-                type="primary"
-                size="mini"
-                :disabled="!isFreeState"
-                @click="store"
+              <el-tooltip
+                v-if="isNativeToken ? faucetCfxBalance : faucetTokenBalance"
+                class="item"
+                effect="dark"
+                :content="isNativeToken ? faucetCfxBalance : faucetTokenBalance"
+                placement="right"
               >
-                store
+                <div class="right-align bold-font">
+                  <label class="main-background"> ... </label>
+                </div>
+              </el-tooltip>
+            </el-col>
+            <el-col :offset="1" :span="2" v-if="isDev">
+              <el-input v-model="depositAmount" oninput="value=value.replace(/[^\d]/g,'')" size="mini" :placeholder="defaultDepositAmount">
+              </el-input>
+            </el-col>
+            <el-col :span="1" v-if="isDev">
+              <el-button type="warning" size="mini" :disabled="!isFreeState" @click="deposit">
+                deposit
               </el-button>
             </el-col>
           </el-row>
@@ -98,7 +94,7 @@
     </el-row>
 
     <el-row type="flex" justify="center" v-if="!isFreeState">
-    <!-- <el-row type="flex" justify="center" v-if="hasTask"> -->
+      <!-- <el-row type="flex" justify="center" v-if="hasTask"> -->
       <el-col :span="20">
         <current-transaction-panel
           v-bind:latestTransactionInfo="latestTransactionInfo"
@@ -122,7 +118,6 @@
 
 <script>
 import { config, faucetContractConfig } from "../contracts-config";
-import { hexStringToArrayBuffer } from "../utils";
 import { TxState, ErrorType } from "../enums";
 import Web3 from "web3";
 import HistoryTransactionPanel from "./HistoryTransactionPanel.vue";
@@ -132,15 +127,20 @@ export default {
   components: {
     // CsvPanel,
     HistoryTransactionPanel,
-    CurrentTransactionPanel,
+    CurrentTransactionPanel
   },
   name: "FaucetPanel",
   data() {
     return {
       selectedToken: "",
+      depositAmount: "",
+      defaultDepositAmount: "10",
 
       contract: null,
       tokenBalance: null,
+
+      faucetCfxBalance: null,
+      faucetTokenBalance: null,
 
       isNativeToken: false,
 
@@ -152,35 +152,23 @@ export default {
         tokenAddress: null,
         networkVersion: null,
         confirmDate: null,
+        from: null,
+        isNativeToken: null,
+        isClaim: null,
+        amount: null
       },
 
       errors: {
         csvError: null,
         transactionError: null,
-        balanceError: null,
+        balanceError: null
       },
       tagTheme: "dark",
 
-      // options 的初始值不会被使用， 而是在初始化时由config决定
-      options: [
-        {
-          value: "GLDToken",
-          label: "测试Token GLD",
-        },
-        {
-          value: "选项2",
-          label: "cEth",
-          disabled: true,
-        },
-        {
-          value: "DMDToken",
-          label: "测试Token DMD",
-        },
-      ],
       config: null,
-      faucetContract: null,
+      // faucetContract: null,
 
-      DEBUG: process.env.NODE_ENV !== "production",
+      DEBUG: process.env.NODE_ENV !== "production"
     };
   },
   computed: {
@@ -204,13 +192,33 @@ export default {
     },
     queryingBalance() {
       if (this.isNativeToken) {
-        return this.cfxBalance === null
-          ? "请连接钱包"
-          : this.sdk.Drip(this.cfxBalance).toCFX();
+        return this.cfxBalance === null ? "请连接钱包" : this.sdk.Drip(this.cfxBalance).toCFX();
       }
-      return this.tokenBalance === null
-        ? "请连接钱包并选择代币种类"
-        : this.sdk.Drip(this.tokenBalance).toCFX();
+
+      if (!this.account) {
+        return "请连接钱包";
+      }
+
+      if (!this.selectedToken) {
+        return "请选择代币种类";
+      }
+
+      // tokenBalance is updated using async function
+      // check tokenBalance before presenting value
+      return this.tokenBalance ? this.sdk.Drip(this.tokenBalance).toCFX() : "请求中...";
+    },
+    queryingFaucetBalance() {
+      if (this.isNativeToken) {
+        return this.faucetCfxBalance === null ? "请求中..." : this.sdk.Drip(this.faucetCfxBalance).toCFX();
+      }
+
+      if (!this.selectedToken) {
+        return "请选择代币种类";
+      }
+
+      // tokenBalance is updated using async function
+      // check tokenBalance before presenting value
+      return this.faucetTokenBalance ? this.sdk.Drip(this.faucetTokenBalance).toCFX() : "请求中...";
     },
     stateType() {
       switch (this.txState) {
@@ -240,7 +248,7 @@ export default {
       }
     },
     isFreeState() {
-      return TxState.isFree(this.txState);
+      return this.txState === TxState.Executed || TxState.isFree(this.txState);
     },
 
     hasTask() {
@@ -250,17 +258,53 @@ export default {
     accountConnected() {
       return this.$store.state.account !== null;
     },
+    options() {
+      const tmp = [
+        {
+          label: "CFX",
+          value: "CFX"
+        }
+      ];
+      if (!config) {
+        return tmp;
+      }
+      Object.keys(config).forEach(option => {
+        tmp.push({
+          value: option,
+          label: config[option].label,
+          // not strict equal
+          disabled:
+            this.$store.state.sdk?.address?.decodeCfxAddress(config[option].address)?.netId !=
+            this.$store.state.conflux?.networkVersion
+        });
+      });
+      // this.options = tmp;
+      return tmp;
+    },
+    faucetContract() {
+      if (!this.confluxJS || !this.sdk || !this.conflux) return null;
+
+      return this.confluxJS.Contract(faucetContractConfig[parseInt(this.networkVersion)]);
+    },
+    isDev() {
+      return this.$store.state.isDev
+    }
   },
   watch: {
     transactionList(newVal) {
       localStorage.faucetTransactionList = JSON.stringify(newVal);
     },
     account(newVal) {
-      if(newVal) {
+      if (newVal) {
         // 异步操作
-        this.updateTokenBalance()
+        this.updateTokenBalance();
       } else {
-        this.resetBalance()
+        this.resetBalance();
+      }
+    },
+    async faucetContract(newVal) {
+      if (newVal !== null) {
+        this.faucetCfxBalance = (await this.confluxJS.getBalance(newVal.address)).toString();
       }
     }
   },
@@ -270,11 +314,11 @@ export default {
     }
 
     // executed immediately after page is fully loaded
-    this.$nextTick(function () {
+    this.$nextTick(function() {
       this.config = config;
-      this.faucetContract = window.confluxJS.Contract(faucetContractConfig);
+      this.faucetContractConfig = faucetContractConfig[1];
+      // this.faucetContract = window.confluxJS.Contract(faucetContractConfig[1]);
       this.web3 = new Web3();
-      this.initTokenOptions(this.config);
     });
   },
   methods: {
@@ -284,22 +328,9 @@ export default {
         // message: this.stateM,
         type: this.stateType,
         offset: 60,
-        duration: 6000,
+        duration: 6000
       });
     },
-
-    initTokenOptions(config) {
-      const tmp = [];
-      Object.keys(config).forEach((option) => {
-        tmp.push({
-          value: option,
-          label: config[option].label,
-          disabled: config[option].disabled,
-        });
-      });
-      this.options = tmp;
-    },
-
     async authorize() {
       try {
         await this.$store.dispatch("authorize");
@@ -315,13 +346,12 @@ export default {
         showConfirmButton: false,
         closeOnClickModal: true,
         closeOnPressEscape: true,
-        callBack: () => {},
+        callBack: () => {}
       }).catch(() => {
         // 点击框外触发
         // do nothing
       });
     },
-    // TODO: error handling (network mismatch etc)
     async updateTokenBalance() {
       // console.log(this.account)
       try {
@@ -329,9 +359,7 @@ export default {
           return;
         }
 
-        const tokenBalance = (
-          await this.contract.balanceOf(this.account)
-        ).toString();
+        const tokenBalance = (await this.contract.balanceOf(this.account)).toString();
         this.tokenBalance = tokenBalance;
         console.log("Account tokenBalance: ");
 
@@ -341,13 +369,44 @@ export default {
         throw e;
       }
     },
+    async updateFaucetCfxBalance() {
+      this.faucetCfxBalance = (
+        await this.confluxJS.getBalance(this.faucetContract.address)
+      ).toString();
+    },
+    async updateFaucetTokenBalance() {
+      try {
+        if (!this.contract) {
+          return;
+        }
+
+        const tokenBalance = (
+          await this.contract.balanceOf(this.faucetContract.address)
+        ).toString();
+        this.faucetTokenBalance = tokenBalance;
+        // console.log("Account tokenBalance: ");
+
+        // console.log(tokenBalance);
+      } catch (e) {
+        e._type = ErrorType.BalanceError;
+        throw e;
+      }
+    },
     async changeToken() {
       console.log("Selected token changed to %s", this.selectedToken);
+
+      if (this.selectedToken === "CFX") {
+        this.isNativeToken = true;
+        this.contract = null;
+        return;
+      }
+      this.isNativeToken = false;
+
       try {
-        this.contract = this.confluxJS.Contract(
-          this.config[this.selectedToken]
-        );
+        this.contract = this.confluxJS.Contract(this.config[this.selectedToken]);
+        // use await to catch error
         await this.updateTokenBalance();
+        await this.updateFaucetTokenBalance();
       } catch (e) {
         this.processError(e);
       }
@@ -362,15 +421,18 @@ export default {
         await this.authorize();
 
         let pendingTx;
-        this.latestTransactionInfo.networkVersion = this.networkVersion;
+        this.latestTransactionInfo.from = this.account;
+        this.latestTransactionInfo.isNativeToken = this.isNativeToken;
+        this.latestTransactionInfo.isClaim = true;
+        this.latestTransactionInfo.amount = this.sdk
+          .Drip((await this.faucetContract.defaultAmount()).toString())
+          .toCFX();
 
         if (!this.isNativeToken) {
-          const tx = this.faucetContract.claimToken(
-            this.contract.address,
-          );
+          const tx = this.faucetContract.claimToken(this.contract.address);
 
           const estimate = await tx.estimateGasAndCollateral({
-            from: this.account,
+            from: this.account
           });
           console.log(estimate);
 
@@ -378,7 +440,7 @@ export default {
             from: this.account,
             value: 0,
             gasPrice: 1,
-            gas: estimate.gasLimit,
+            gas: estimate.gasLimit
           });
 
           this.latestTransactionInfo.selectedToken = this.selectedToken;
@@ -387,7 +449,7 @@ export default {
           const tx = this.faucetContract.claimCfx();
 
           const estimate = await tx.estimateGasAndCollateral({
-            from: this.account,
+            from: this.account
           });
           console.log(estimate);
 
@@ -395,7 +457,7 @@ export default {
             from: this.account,
             value: 0,
             gasPrice: 1,
-            gas: estimate.gasLimit,
+            gas: estimate.gasLimit
           });
 
           this.latestTransactionInfo.selectedToken = "CFX";
@@ -411,17 +473,19 @@ export default {
         this.latestTransactionInfo.hash = receipt.transactionHash;
         this.txState = TxState.Executed;
 
+        this.latestTransactionInfo.confirmDate = Date.now();
+        // deep copy
+        // 执行后立刻加入历史交易列表
+        this.transactionList.push(JSON.parse(JSON.stringify(this.latestTransactionInfo)));
+
         await this.$store.dispatch("updateCfxBalance");
         await this.updateTokenBalance();
+        await this.updateFaucetCfxBalance();
+        await this.updateFaucetTokenBalance();
+
 
         this.notifyTxState();
         receipt = await pendingTx.confirmed();
-        this.latestTransactionInfo.confirmDate = Date.now();
-
-        // deep copy
-        this.transactionList.push(
-          JSON.parse(JSON.stringify(this.latestTransactionInfo))
-        );
 
         this.txState = TxState.Confirmed;
         this.notifyTxState();
@@ -430,23 +494,29 @@ export default {
         this.processError(err);
       }
     },
-    async store() {
+    async deposit() {
       this.resetLatestTransactionInfo();
       try {
         // 重新获取授权
         await this.authorize();
 
+        const amount = this.depositAmount?this.depositAmount:this.defaultDepositAmount;
+
         let pendingTx;
         this.latestTransactionInfo.networkVersion = this.networkVersion;
+        this.latestTransactionInfo.from = this.account;
+        this.latestTransactionInfo.isNativeToken = this.isNativeToken;
+        this.latestTransactionInfo.amount = amount;
+        this.latestTransactionInfo.isClaim = false;
 
         if (!this.isNativeToken) {
           const tx = this.contract.transfer(
             this.faucetContract.address,
-            this.fromCfxToDrip(1)
+            this.fromCfxToDrip(amount)
           );
 
           const estimate = await tx.estimateGasAndCollateral({
-            from: this.account,
+            from: this.account
           });
           console.log(estimate);
 
@@ -454,30 +524,19 @@ export default {
             from: this.account,
             value: 0,
             gasPrice: 1,
-            gas: estimate.gasLimit,
+            gas: estimate.gasLimit
           });
 
           this.latestTransactionInfo.selectedToken = this.selectedToken;
           this.latestTransactionInfo.tokenAddress = this.contract.address;
         } else {
-          // const tx = this.confluxJS.sendTransaction(
-          //   // faucetContract.address,
-          //   // this.fromCfxToDrip(1)
-          // );
-
-          // const estimate = await tx.estimateGasAndCollateral({
-          //   value: this.fromCfxToDrip(1),
-          //   from: this.account,
-          //   to: this.faucetContract.address,
-          // });
-          // console.log(estimate);
 
           pendingTx = this.confluxJS.sendTransaction({
             from: this.account,
-            value: this.fromCfxToDrip(1),
+            value: this.fromCfxToDrip(amount),
             to: this.faucetContract.address,
             gasPrice: 1,
-            gas: 31000,
+            gas: 31000
           });
 
           this.latestTransactionInfo.selectedToken = "CFX";
@@ -493,17 +552,18 @@ export default {
         this.latestTransactionInfo.hash = receipt.transactionHash;
         this.txState = TxState.Executed;
 
-        await this.$store.dispatch("updateCfxBalance");
-        await this.updateTokenBalance();
-
-        this.notifyTxState();
-        receipt = await pendingTx.confirmed();
         this.latestTransactionInfo.confirmDate = Date.now();
 
         // deep copy
-        this.transactionList.push(
-          JSON.parse(JSON.stringify(this.latestTransactionInfo))
-        );
+        this.transactionList.push(JSON.parse(JSON.stringify(this.latestTransactionInfo)));
+
+        await this.$store.dispatch("updateCfxBalance");
+        await this.updateTokenBalance();
+        await this.updateFaucetCfxBalance();
+        await this.updateFaucetTokenBalance();
+
+        this.notifyTxState();
+        receipt = await pendingTx.confirmed();
 
         this.txState = TxState.Confirmed;
         this.notifyTxState();
@@ -535,7 +595,7 @@ export default {
       }
       // console.log(this.errors)
     },
-    
+
     resetBalance() {
       // this.$store.commit("resetCfxBalance");
       this.tokenBalance = null;
@@ -550,14 +610,17 @@ export default {
         tokenAddress: null,
         networkVersion: null,
         confirmDate: null,
+        from: null,
+        isNativeToken: null,
+        isClaim: null,
+        amount: null
       };
-    },
-  },
+    }
+  }
 };
 </script>
 
 <style scoped>
-
 .full-height {
   height: 100%;
   /* align: middle; */
