@@ -16,13 +16,15 @@ const store = new Vuex.Store({
     cfxBalance: null,
     confluxJS: null,
     isDev: process.env.NODE_ENV !== 'production',
+    chainId: null,
   },
   getters: {
     simplifiedAccount: state => {
       if (!state.account) {
         return null;
       }
-      const prefix = state.account.substr(0, 6)
+      const index = state.account.indexOf(":")
+      const prefix = state.account.substr(0, index+4)
       const tail = state.account.substr(state.account.length-4)
       return prefix + "..." + tail
     },
@@ -47,6 +49,17 @@ const store = new Vuex.Store({
           store.dispatch('updateCfxBalance')
         }
       })
+      if (state.conflux.isFluent) {
+        state.conflux.on("connect", async () => {
+          const chainId = await state.conflux.request({method: 'cfx_chainId'})
+          // console.log(chainId)
+          state.chainId = chainId
+        })
+
+        state.conflux.on("chainChanged", () => {
+          location.reload()
+        })
+      }
     },
     setAccount(state, payload) {
       state.account = payload.account
@@ -66,7 +79,12 @@ const store = new Vuex.Store({
   },
   actions: {
     async authorize(context) {
-      const accounts = await context.state.conflux.enable();
+      let accounts;
+      if (context.state.conflux.isFluent) {
+        accounts = await context.state.conflux.request({method: "cfx_requestAccounts"});
+      } else {
+        accounts = await context.state.conflux.enable();
+      }
       context.commit('setAccount', { 
         account: accounts[0]
       })
