@@ -249,7 +249,7 @@ export default {
       return this.$store.state.cfxBalance;
     },
     chainId() {
-      return this.conflux?.chainId;
+      return this.$store.state.chainId || this.conflux?.chainId;
     },
     isNativeToken() {
       return this.selectedToken === "CFX";
@@ -361,13 +361,13 @@ export default {
           // not strict equal
           disabled:
             this.$store.state.sdk?.address?.decodeCfxAddress(tokenConfig[option].address)?.netId !=
-            this.$store.state.conflux?.chainId
+            this.chainId
         });
       });
       return tmp;
     },
     faucetContract() {
-      if (!this.confluxJS || !this.sdk || !this.conflux) return null;
+      if (!this.conflux) return null;
       if (parseInt(this.chainId) !== 1) return null;
       return this.confluxJS.Contract(faucetContractConfig[parseInt(this.chainId)]);
     },
