@@ -109,6 +109,7 @@
 <script>
 import FaucetPanel from "./components/FaucetPanel.vue";
 import { getScanUrl } from "./utils";
+import { default as sdk } from "js-conflux-sdk"
 
 export default {
   components: {
@@ -144,7 +145,7 @@ export default {
       return this.$store.state.cfxBalance;
     },
     networkText() {
-      switch (this.conflux?.chainId) {
+      switch (this.chainId) {
         case '0x405':
           return "Conflux Tethys";
         case '0x1':
@@ -153,10 +154,10 @@ export default {
           return "Portal Not Detected";
       }
 
-      return "networkId: " + this.conflux?.chainId;
+      return "networkId: " + this.chainId.chainId;
     },
     chainId() {
-      return this.conflux?.chainId;
+      return this.$store.state.chainId || this.conflux?.chainId;
     },
     simplifiedAccount() {
       return this.$store.getters.simplifiedAccount;
@@ -182,10 +183,14 @@ export default {
     // 挂载后会监听 accountChanged 事件
     this.$nextTick(function () {
       if (typeof window.conflux !== "undefined") {
+        
+        const confluxJS = new sdk.Conflux()
+        confluxJS.provider = window.conflux
+
         this.$store.dispatch("init", {
           conflux: window.conflux,
-          confluxJS: window.confluxJS,
-          sdk: window.ConfluxJSSDK,
+          confluxJS,
+          sdk,
         });
       } else {
         // 没有检测到 ConfluxPortal 注入的变量时会弹出窗口提示安装
