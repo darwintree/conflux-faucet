@@ -77,10 +77,10 @@
         <el-row>
           {{ $t("message.tooltip.faucet.portal.beg")
           }}<el-link
-            href="https://portal.confluxnetwork.org/"
+            href="https://fluentwallet.com/"
             type="primary"
             target="_blank"
-            >ConfluxPortal<i
+            >Fluent Wallet<i
               class="el-icon-top-right el-icon--right"
             ></i></el-link
           >{{ $t("message.tooltip.faucet.portal.end") }}
@@ -154,7 +154,7 @@ export default {
           return "Portal Not Detected";
       }
 
-      return "networkId: " + this.chainId.chainId;
+      return "networkId: " + this.chainId;
     },
     chainId() {
       return this.$store.state.chainId || this.conflux?.chainId;
