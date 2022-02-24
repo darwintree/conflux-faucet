@@ -33,7 +33,7 @@ const messages = {
       warning: {
         connectionWarning: 'Please connect to your wallet',
         tokenWarning: 'Please select token',
-        changeNetworkWarning: 'Please change network to Conflux Testnet in Conflux Poral, and then manually refresh page',
+        changeNetworkWarning: 'Please change network to Conflux Testnet in Conflux Portal, and then manually refresh page',
         networkLoadingWarning: 'Network status is on loading or unofficial network is in use，please check it in ConfluxPortal'
       },
       tooltip: {
