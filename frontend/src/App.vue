@@ -77,10 +77,10 @@
         <el-row>
           {{ $t("message.tooltip.faucet.portal.beg")
           }}<el-link
-            href="https://fluentwallet.com/"
+            href="https://fluentwallet.com"
             type="primary"
             target="_blank"
-            >Fluent Wallet<i
+            >FluentWallet<i
               class="el-icon-top-right el-icon--right"
             ></i></el-link
           >{{ $t("message.tooltip.faucet.portal.end") }}
